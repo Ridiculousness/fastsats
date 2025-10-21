@@ -1,5 +1,6 @@
->
-                <div class="stat-<!DOCTYPE html>
+
+        }
+        <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -150,6 +151,12 @@
             transform: translateY(-2px);
         }
         
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         .message {
             margin-top: 1rem;
             padding: 0.8rem;
@@ -228,6 +235,23 @@
             to { transform: rotate(360deg); }
         }
         
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #f7931a, #ffde6b);
+            border-radius: 5px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
         @media (max-width: 600px) {
             .stats {
                 flex-direction: column;
@@ -249,7 +273,7 @@
         
         <div class="stats">
             <div class="stat-box">
-                <div class="stat-value" id="sats-earned">0</div>
+                <div class="stat-value" id="sats-earned">0.00</div>
                 <div class="stat-label">Satoshis Earned</div>
             </div>
             <div class="stat-box">
@@ -257,13 +281,20 @@
                 <div class="stat-label">Total Clicks</div>
             </div>
             <div class="stat-box">
-                <div class="stat-value" id="sats-per-click">10</div>
+                <div class="stat-value" id="sats-per-click">0.10</div>
                 <div class="stat-label">Sats Per Click</div>
             </div>
         </div>
         
         <div class="click-area" id="click-area">
             <div class="click-text">CLICK ME!</div>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress" id="progress-bar"></div>
+        </div>
+        <div style="color: #a0a0c0; font-size: 0.9rem; margin-top: 0.5rem;">
+            Progress to withdrawal: <span id="progress-text">0.00</span>/10 sats
         </div>
         
         <div class="cashout-section">
@@ -314,7 +345,8 @@
         // Game state
         let satsEarned = 0;
         let clickCount = 0;
-        let satsPerClick = 10;
+        let satsPerClick = 0.10;
+        const WITHDRAWAL_LIMIT = 10;
         
         // Make.com Webhook URL - Updated with your webhook
         const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/aexyjndge98wfbusrmlim16ti58alaxy';
@@ -327,6 +359,15 @@
         const lightningAddressInput = document.getElementById('lightning-address');
         const cashoutButton = document.getElementById('cashout-btn');
         const messageElement = document.getElementById('message');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        
+        // Update progress bar
+        function updateProgressBar() {
+            const progressPercent = Math.min((satsEarned / WITHDRAWAL_LIMIT) * 100, 100);
+            progressBar.style.width = `${progressPercent}%`;
+            progressText.textContent = satsEarned.toFixed(2);
+        }
         
         // Click handler
         clickArea.addEventListener('click', () => {
@@ -334,8 +375,11 @@
             clickCount++;
             
             // Update display
-            satsEarnedElement.textContent = satsEarned.toLocaleString();
+            satsEarnedElement.textContent = satsEarned.toFixed(2);
             clickCountElement.textContent = clickCount.toLocaleString();
+            
+            // Update progress bar
+            updateProgressBar();
             
             // Visual feedback
             clickArea.style.transform = 'scale(0.95)';
@@ -344,10 +388,15 @@
             }, 100);
             
             // Occasionally increase sats per click
-            if (clickCount % 25 === 0) {
-                satsPerClick += 5;
-                satsPerClickElement.textContent = satsPerClick;
-                showMessage(`Bonus! Now earning ${satsPerClick} sats per click!`, 'success');
+            if (clickCount % 50 === 0 && clickCount > 0) {
+                satsPerClick += 0.01;
+                satsPerClickElement.textContent = satsPerClick.toFixed(2);
+                showMessage(`Bonus! Now earning ${satsPerClick.toFixed(2)} sats per click!`, 'success');
+            }
+            
+            // Check if user can cash out
+            if (satsEarned >= WITHDRAWAL_LIMIT) {
+                showMessage(`You've reached the withdrawal limit of ${WITHDRAWAL_LIMIT} sats! You can now cash out.`, 'success');
             }
         });
         
@@ -368,8 +417,8 @@
             }
             
             // Check if user has enough sats to cash out
-            if (satsEarned < 1000) {
-                showMessage('Cashout failed: Minimum withdrawal is 1,000 sats', 'error');
+            if (satsEarned < WITHDRAWAL_LIMIT) {
+                showMessage(`Cashout failed: Minimum withdrawal is ${WITHDRAWAL_LIMIT} sats. You have ${satsEarned.toFixed(2)} sats.`, 'error');
                 return;
             }
             
@@ -384,27 +433,29 @@
                 
                 const response = await sendToMakeWebhook({
                     lightningAddress: lightningAddress,
-                    amount: satsEarned,
+                    amount: satsEarned.toFixed(2),
                     timestamp: new Date().toISOString(),
                     status: 'pending',
                     userAgent: navigator.userAgent,
                     clickCount: clickCount,
-                    satsPerClick: satsPerClick
+                    satsPerClick: satsPerClick.toFixed(2)
                 });
                 
                 if (response.ok) {
-                    const responseData = await response.json();
-                    showMessage(`Success! ${satsEarned.toLocaleString()} sats requested for ${lightningAddress}. Payment processing soon!`, 'success');
+                    showMessage(`Success! ${satsEarned.toFixed(2)} sats requested for ${lightningAddress}. Payment processing soon!`, 'success');
                     
                     // Reset game state
                     satsEarned = 0;
                     clickCount = 0;
-                    satsPerClick = 10;
+                    satsPerClick = 0.10;
                     
                     // Update display
-                    satsEarnedElement.textContent = satsEarned.toLocaleString();
+                    satsEarnedElement.textContent = satsEarned.toFixed(2);
                     clickCountElement.textContent = clickCount.toLocaleString();
-                    satsPerClickElement.textContent = satsPerClick;
+                    satsPerClickElement.textContent = satsPerClick.toFixed(2);
+                    
+                    // Update progress bar
+                    updateProgressBar();
                     
                     // Clear input
                     lightningAddressInput.value = '';
@@ -491,6 +542,9 @@
             playClickSound();
             if (originalClickHandler) originalClickHandler();
         };
+        
+        // Initialize progress bar
+        updateProgressBar();
     </script>
 </body>
 </html>
