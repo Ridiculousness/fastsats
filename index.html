@@ -1,6 +1,4 @@
-
-        }
-        <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -90,6 +88,8 @@
             box-shadow: 0 10px 30px rgba(247, 147, 26, 0.4);
             transition: transform 0.1s;
             user-select: none;
+            position: relative;
+            overflow: hidden;
         }
         
         .click-area:active {
@@ -100,6 +100,7 @@
             font-size: 1.5rem;
             font-weight: bold;
             color: #1a1a2e;
+            z-index: 2;
         }
         
         .cashout-section {
@@ -252,6 +253,49 @@
             width: 0%;
         }
         
+        .click-effect {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: ripple 0.6s linear;
+            z-index: 1;
+        }
+        
+        @keyframes ripple {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(10);
+                opacity: 0;
+            }
+        }
+        
+        .click-counter {
+            position: absolute;
+            color: #f7931a;
+            font-weight: bold;
+            font-size: 1.2rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 3;
+        }
+        
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+        }
+        
         @media (max-width: 600px) {
             .stats {
                 flex-direction: column;
@@ -281,7 +325,7 @@
                 <div class="stat-label">Total Clicks</div>
             </div>
             <div class="stat-box">
-                <div class="stat-value" id="sats-per-click">0.10</div>
+                <div class="stat-value" id="sats-per-click">0.05</div>
                 <div class="stat-label">Sats Per Click</div>
             </div>
         </div>
@@ -338,6 +382,7 @@
         
         <footer>
             <p>Cashouts are logged automatically. You'll receive your sats shortly after verification.</p>
+            <p style="margin-top: 0.5rem;">Withdrawal limit: 10 sats | Fixed earnings: 0.05 sats per click</p>
         </footer>
     </div>
 
@@ -345,10 +390,10 @@
         // Game state
         let satsEarned = 0;
         let clickCount = 0;
-        let satsPerClick = 0.10;
+        let satsPerClick = 0.05;
         const WITHDRAWAL_LIMIT = 10;
         
-        // Make.com Webhook URL - Updated with your webhook
+        // Make.com Webhook URL
         const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/aexyjndge98wfbusrmlim16ti58alaxy';
         
         // DOM elements
@@ -369,8 +414,39 @@
             progressText.textContent = satsEarned.toFixed(2);
         }
         
+        // Create click effect
+        function createClickEffect(x, y) {
+            const effect = document.createElement('div');
+            effect.className = 'click-effect';
+            effect.style.left = `${x - 10}px`;
+            effect.style.top = `${y - 10}px`;
+            clickArea.appendChild(effect);
+            
+            setTimeout(() => {
+                effect.remove();
+            }, 600);
+        }
+        
+        // Create floating counter
+        function createFloatingCounter(x, y) {
+            const counter = document.createElement('div');
+            counter.className = 'click-counter';
+            counter.textContent = `+${satsPerClick.toFixed(2)}`;
+            counter.style.left = `${x}px`;
+            counter.style.top = `${y}px`;
+            clickArea.appendChild(counter);
+            
+            setTimeout(() => {
+                counter.remove();
+            }, 1000);
+        }
+        
         // Click handler
-        clickArea.addEventListener('click', () => {
+        clickArea.addEventListener('click', (e) => {
+            const rect = clickArea.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
             satsEarned += satsPerClick;
             clickCount++;
             
@@ -381,18 +457,14 @@
             // Update progress bar
             updateProgressBar();
             
-            // Visual feedback
+            // Visual effects
+            createClickEffect(x, y);
+            createFloatingCounter(x, y);
+            
             clickArea.style.transform = 'scale(0.95)';
             setTimeout(() => {
                 clickArea.style.transform = 'scale(1)';
             }, 100);
-            
-            // Occasionally increase sats per click
-            if (clickCount % 50 === 0 && clickCount > 0) {
-                satsPerClick += 0.01;
-                satsPerClickElement.textContent = satsPerClick.toFixed(2);
-                showMessage(`Bonus! Now earning ${satsPerClick.toFixed(2)} sats per click!`, 'success');
-            }
             
             // Check if user can cash out
             if (satsEarned >= WITHDRAWAL_LIMIT) {
@@ -447,12 +519,10 @@
                     // Reset game state
                     satsEarned = 0;
                     clickCount = 0;
-                    satsPerClick = 0.10;
                     
                     // Update display
                     satsEarnedElement.textContent = satsEarned.toFixed(2);
                     clickCountElement.textContent = clickCount.toLocaleString();
-                    satsPerClickElement.textContent = satsPerClick.toFixed(2);
                     
                     // Update progress bar
                     updateProgressBar();
@@ -508,13 +578,20 @@
         document.addEventListener('keydown', (event) => {
             if (event.code === 'Space') {
                 event.preventDefault();
-                clickArea.click();
+                const rect = clickArea.getBoundingClientRect();
+                const x = rect.width / 2;
+                const y = rect.height / 2;
+                
+                // Trigger click with center coordinates
+                clickArea.dispatchEvent(new MouseEvent('click', {
+                    clientX: rect.left + x,
+                    clientY: rect.top + y
+                }));
             }
         });
         
-        // Add click sound effect (optional)
+        // Add click sound effect
         function playClickSound() {
-            // Simple beep sound using Web Audio API
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioContext.createOscillator();
@@ -523,10 +600,10 @@
                 oscillator.connect(gainNode);
                 gainNode.connect(audioContext.destination);
                 
-                oscillator.frequency.value = 800;
+                oscillator.frequency.value = 600;
                 oscillator.type = 'sine';
                 
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
                 
                 oscillator.start(audioContext.currentTime);
@@ -537,14 +614,15 @@
         }
         
         // Enhanced click handler with sound
-        const originalClickHandler = clickArea.onclick;
-        clickArea.onclick = function() {
-            playClickSound();
-            if (originalClickHandler) originalClickHandler();
-        };
+        clickArea.addEventListener('click', playClickSound);
         
         // Initialize progress bar
         updateProgressBar();
+        
+        // Add instructions
+        setTimeout(() => {
+            showMessage('Tip: Press SPACEBAR for faster clicking!', 'success');
+        }, 2000);
     </script>
 </body>
 </html>
