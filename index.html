@@ -22,6 +22,20 @@
             padding: 2rem;
         }
         
+        .daily-limit-banner {
+            background: linear-gradient(90deg, #ff6b6b, #ff8e8e);
+            color: white;
+            text-align: center;
+            padding: 0.8rem;
+            font-weight: bold;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            width: 100%;
+            max-width: 800px;
+            font-size: 1rem;
+        }
+        
         .container {
             max-width: 800px;
             width: 100%;
@@ -201,6 +215,12 @@
             border-radius: 10px;
             padding: 1rem;
             text-align: center;
+            transition: transform 0.2s;
+        }
+        
+        .provider:hover {
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 0.15);
         }
         
         .provider-name {
@@ -305,10 +325,20 @@
             .input-group {
                 flex-direction: column;
             }
+            
+            .daily-limit-banner {
+                font-size: 0.9rem;
+                padding: 0.6rem;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Daily Limit Banner -->
+    <div class="daily-limit-banner">
+        ⚠️ Daily Limit: You can earn maximum 40 sats per day
+    </div>
+
     <div class="container">
         <header>
             <h1>Bitcoin Lightning Clicker</h1>
@@ -354,6 +384,10 @@
             <h2 class="providers-title">Lightning Service Providers</h2>
             <div class="provider-list">
                 <div class="provider">
+                    <div class="provider-name">ZBD Wallet</div>
+                    <div class="provider-desc">Gaming-focused Lightning wallet</div>
+                </div>
+                <div class="provider">
                     <div class="provider-name">Wallet of Satoshi</div>
                     <div class="provider-desc">User-friendly mobile Lightning wallet</div>
                 </div>
@@ -382,7 +416,7 @@
         
         <footer>
             <p>Cashouts are logged automatically. You'll receive your sats shortly after verification.</p>
-            <p style="margin-top: 0.5rem;">Withdrawal limit: 10 sats | Fixed earnings: 0.01 sats per click</p>
+            <p style="margin-top: 0.5rem;">Withdrawal limit: 10 sats | Fixed earnings: 0.01 sats per click | Daily limit: 40 sats</p>
         </footer>
     </div>
 
@@ -392,6 +426,7 @@
         let clickCount = 0;
         let satsPerClick = 0.01;
         const WITHDRAWAL_LIMIT = 10;
+        const DAILY_LIMIT = 40;
         
         // Make.com Webhook URL
         const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/aexyjndge98wfbusrmlim16ti58alaxy';
@@ -443,6 +478,12 @@
         
         // Click handler
         clickArea.addEventListener('click', (e) => {
+            // Check daily limit
+            if (satsEarned >= DAILY_LIMIT) {
+                showMessage(`Daily limit reached! You've earned ${DAILY_LIMIT} sats today. Come back tomorrow!`, 'error');
+                return;
+            }
+            
             const rect = clickArea.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
@@ -465,6 +506,16 @@
             setTimeout(() => {
                 clickArea.style.transform = 'scale(1)';
             }, 100);
+            
+            // Check daily limit warning
+            if (satsEarned >= DAILY_LIMIT - 5 && satsEarned < DAILY_LIMIT) {
+                showMessage(`Approaching daily limit! You have ${(DAILY_LIMIT - satsEarned).toFixed(2)} sats left to earn today.`, 'success');
+            }
+            
+            // Check if daily limit reached
+            if (satsEarned >= DAILY_LIMIT) {
+                showMessage(`Daily limit reached! You've earned ${DAILY_LIMIT} sats today. Come back tomorrow!`, 'error');
+            }
             
             // Check if user can cash out
             if (satsEarned >= WITHDRAWAL_LIMIT) {
@@ -510,7 +561,8 @@
                     status: 'pending',
                     userAgent: navigator.userAgent,
                     clickCount: clickCount,
-                    satsPerClick: satsPerClick.toFixed(2)
+                    satsPerClick: satsPerClick.toFixed(2),
+                    dailyLimit: DAILY_LIMIT
                 });
                 
                 if (response.ok) {
