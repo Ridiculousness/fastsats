@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+>
+                <div class="stat-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -212,6 +213,21 @@
             font-size: 0.9rem;
         }
         
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
         @media (max-width: 600px) {
             .stats {
                 flex-direction: column;
@@ -290,7 +306,7 @@
         </div>
         
         <footer>
-            <p>This is a demonstration game. In a real implementation, you would need a backend to process Lightning payments.</p>
+            <p>Cashouts are logged automatically. You'll receive your sats shortly after verification.</p>
         </footer>
     </div>
 
@@ -299,6 +315,9 @@
         let satsEarned = 0;
         let clickCount = 0;
         let satsPerClick = 10;
+        
+        // Make.com Webhook URL - Updated with your webhook
+        const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/aexyjndge98wfbusrmlim16ti58alaxy';
         
         // DOM elements
         const satsEarnedElement = document.getElementById('sats-earned');
@@ -333,7 +352,7 @@
         });
         
         // Cashout handler
-        cashoutButton.addEventListener('click', () => {
+        cashoutButton.addEventListener('click', async () => {
             const lightningAddress = lightningAddressInput.value.trim();
             
             // Validate Lightning address
@@ -354,23 +373,64 @@
                 return;
             }
             
-            // In a real implementation, this would connect to a backend
-            // that processes Lightning payments
-            showMessage(`Success! ${satsEarned.toLocaleString()} sats sent to ${lightningAddress}`, 'success');
+            // Disable button and show loading
+            const originalButtonText = cashoutButton.innerHTML;
+            cashoutButton.innerHTML = '<span class="loading"></span>Processing...';
+            cashoutButton.disabled = true;
             
-            // Reset game state
-            satsEarned = 0;
-            clickCount = 0;
-            satsPerClick = 10;
-            
-            // Update display
-            satsEarnedElement.textContent = satsEarned.toLocaleString();
-            clickCountElement.textContent = clickCount.toLocaleString();
-            satsPerClickElement.textContent = satsPerClick;
-            
-            // Clear input
-            lightningAddressInput.value = '';
+            // Send data to Make.com
+            try {
+                showMessage('Processing cashout request...', 'success');
+                
+                const response = await sendToMakeWebhook({
+                    lightningAddress: lightningAddress,
+                    amount: satsEarned,
+                    timestamp: new Date().toISOString(),
+                    status: 'pending',
+                    userAgent: navigator.userAgent,
+                    clickCount: clickCount,
+                    satsPerClick: satsPerClick
+                });
+                
+                if (response.ok) {
+                    const responseData = await response.json();
+                    showMessage(`Success! ${satsEarned.toLocaleString()} sats requested for ${lightningAddress}. Payment processing soon!`, 'success');
+                    
+                    // Reset game state
+                    satsEarned = 0;
+                    clickCount = 0;
+                    satsPerClick = 10;
+                    
+                    // Update display
+                    satsEarnedElement.textContent = satsEarned.toLocaleString();
+                    clickCountElement.textContent = clickCount.toLocaleString();
+                    satsPerClickElement.textContent = satsPerClick;
+                    
+                    // Clear input
+                    lightningAddressInput.value = '';
+                } else {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error sending to Make.com:', error);
+                showMessage('Cashout failed: Network error. Please try again.', 'error');
+            } finally {
+                // Re-enable button
+                cashoutButton.innerHTML = originalButtonText;
+                cashoutButton.disabled = false;
+            }
         });
+        
+        // Send data to Make.com webhook
+        async function sendToMakeWebhook(data) {
+            return fetch(MAKE_WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+        }
         
         // Simple Lightning address validation
         function isValidLightningAddress(address) {
@@ -384,12 +444,53 @@
             messageElement.textContent = text;
             messageElement.className = 'message ' + type;
             
-            // Clear message after 5 seconds
-            setTimeout(() => {
-                messageElement.textContent = '';
-                messageElement.className = 'message';
-            }, 5000);
+            // Clear message after 5 seconds (unless it's a success message)
+            if (type !== 'success') {
+                setTimeout(() => {
+                    messageElement.textContent = '';
+                    messageElement.className = 'message';
+                }, 5000);
+            }
         }
+        
+        // Add keyboard shortcut for clicking (Spacebar)
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                clickArea.click();
+            }
+        });
+        
+        // Add click sound effect (optional)
+        function playClickSound() {
+            // Simple beep sound using Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                // Audio not supported or blocked
+            }
+        }
+        
+        // Enhanced click handler with sound
+        const originalClickHandler = clickArea.onclick;
+        clickArea.onclick = function() {
+            playClickSound();
+            if (originalClickHandler) originalClickHandler();
+        };
     </script>
 </body>
 </html>
